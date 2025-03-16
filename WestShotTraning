@@ -1,0 +1,117 @@
+import pygame 
+import time 
+from random import randint 
+
+pygame.init()
+
+# Colors
+BACK = (200, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 51)
+DARK_BLUE = (0, 0, 100)
+BLUE = (80, 80, 255)
+WHITE = (255, 255, 255)
+LIGHT_GREEN = (200, 255, 200)
+LIGHT_RED = (250, 128, 114)
+
+# Window setup
+mw = pygame.display.set_mode((500, 500))
+mw.fill(BACK)
+clock = pygame.time.Clock()
+
+# Target class
+class Target:
+    def __init__(self, x, y, radius):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.center_color = RED  # Default inner circle color
+
+    def draw(self):
+        pygame.draw.circle(mw, WHITE, (self.x, self.y), self.radius + 10)  # Outer white ring
+        pygame.draw.circle(mw, RED, (self.x, self.y), self.radius + 5)  # Middle red ring
+        pygame.draw.circle(mw, self.center_color, (self.x, self.y), self.radius)  # Inner circle
+
+    def set_center_color(self, new_color):
+        self.center_color = new_color
+        self.draw()
+
+    def collidepoint(self, x, y):
+        return (x - self.x) ** 2 + (y - self.y) ** 2 <= self.radius ** 2
+
+# Interface Elements
+def draw_text(text, size, color, x, y):
+    font = pygame.font.SysFont('verdana', size)
+    render = font.render(text, True, color)
+    mw.blit(render, (x, y))
+
+# Game Setup
+targets = []
+num_targets = 4
+x = 100
+
+for i in range(num_targets):
+    new_target = Target(x, 250, 30)
+    new_target.draw()
+    targets.append(new_target)
+    x += 100
+
+start_time = time.time()
+cur_time = start_time
+wait = 0
+points = 0
+
+# Game Loop
+running = True
+while running:
+    mw.fill(BACK)  # Очистка екрану перед відмальовкою
+    draw_text('Час:', 40, DARK_BLUE, 20, 20)
+    draw_text(str(int(time.time() - start_time)), 40, DARK_BLUE, 50, 55)
+    draw_text('Рахунок:', 45, DARK_BLUE, 380, 20)
+    draw_text(str(points), 40, DARK_BLUE, 430, 55)
+    
+    for target in targets:
+        target.draw()
+    
+    if wait == 0:
+        wait = 20  # How long the highlight stays on one target
+        click = randint(1, num_targets)
+        for i in range(num_targets):
+            targets[i].set_center_color(RED)
+        targets[click - 1].set_center_color(BLUE)
+    else:
+        wait -= 1
+
+    # Event Handling
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            x, y = event.pos
+            for i in range(num_targets):
+                if targets[i].collidepoint(x, y):
+                    if i + 1 == click:
+                        targets[i].set_center_color(GREEN)
+                        points += 1
+                    else:
+                        targets[i].set_center_color(LIGHT_RED)
+                        points -= 1
+
+    # Check for Win/Loss Conditions
+    new_time = time.time()
+    if new_time - start_time >= 11:
+        if points < 3:
+            draw_text("Ти програв!", 60, DARK_BLUE, 140, 180)
+        else:
+            draw_text("Час вичерпано!!!", 60, DARK_BLUE, 110, 180)
+        running = False
+
+    if points >= 5:
+        draw_text("Ти переміг!!!", 60, DARK_BLUE, 140, 180)
+        draw_text(f"Час проходження: {int(new_time - start_time)} секунд", 40, DARK_BLUE, 90, 230)
+        running = False
+
+    pygame.display.update()
+    clock.tick(40)
+
+pygame.quit()

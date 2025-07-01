@@ -1,0 +1,170 @@
+import base64
+import io
+import os
+import threading
+from socket import socket, AF_INET, SOCK_STREAM
+from customtkinter import *
+from tkinter import filedialog
+from PIL import Image
+
+
+class MainWindow(CTk):
+    def __init__(self):
+        super().__init__()
+
+        self.geometry("800x600")
+        self.resizable(False, False)
+        self.username = "Олег"
+        self.sock = None
+        self.current_theme = "dark"
+        set_appearance_mode(self.current_theme)
+
+        self.menu_frame = CTkFrame(self, width=140, height=600)
+        self.menu_frame.place(x=0, y=0)
+
+        CTkLabel(self.menu_frame, text="Імʼя").place(x=10, y=20)
+        self.entry = CTkEntry(self.menu_frame, placeholder_text="Ваш нік...", width=120)
+        self.entry.place(x=10, y=50)
+
+        self.save_name_button = self.create_button(text="Зберегти", command=self.save_name, width=120)
+        self.save_name_button.place(x=10, y=85)
+
+        self.theme_button = self.create_button(text="🎨 Тема", command=self.toggle_theme, width=120)
+        self.theme_button.place(x=10, y=125)
+
+        self.chat_field = CTkScrollableFrame(self, width=640, height=500, fg_color="transparent")
+        self.chat_field.place(x=150, y=10)
+
+        self.message_entry = CTkEntry(self, placeholder_text="Повідомлення:", height=35, width=470)
+        self.message_entry.place(x=150, y=545)
+        self.message_entry.bind("<Return>", lambda event: self.send_message())
+
+        self.open_img_button = self.create_button(text="📷", width=50, height=35, command=self.open_image)
+        self.open_img_button.place(x=630, y=545)
+
+        self.send_button = self.create_button(text=">", width=50, height=35, command=self.send_message)
+        self.send_button.place(x=690, y=545)
+
+        self.connect_to_server()
+
+    def create_button(self, *args, **kwargs):
+        theme = get_appearance_mode()
+        if theme == "Light":
+            kwargs["fg_color"] = "#d0d0d0"
+            kwargs["hover_color"] = "#c0c0c0"
+            kwargs["text_color"] = "black"
+        else:
+            kwargs["fg_color"] = "#333333"
+            kwargs["hover_color"] = "#444444"
+            kwargs["text_color"] = "white"
+        return CTkButton(self, *args, **kwargs)
+
+    def get_button_style(self):
+        theme = get_appearance_mode()
+        if theme == "Light":
+            return {"fg_color": "#d0d0d0", "hover_color": "#c0c0c0", "text_color": "black"}
+        else:
+            return {"fg_color": "#333333", "hover_color": "#444444", "text_color": "white"}
+
+    def toggle_theme(self):
+        self.current_theme = "light" if self.current_theme == "dark" else "dark"
+        set_appearance_mode(self.current_theme)
+        for btn in [self.send_button, self.open_img_button, self.save_name_button, self.theme_button]:
+            btn.configure(**self.get_button_style())
+
+    def connect_to_server(self):
+        try:
+            self.sock = socket(AF_INET, SOCK_STREAM)
+            self.sock.connect(("localhost", 8080))
+            hello = f"TEXT@{self.username}@[SYSTEM] {self.username} приєднався до чату!"
+            self.sock.sendall((hello + "\n").encode())
+            threading.Thread(target=self.recv_message, daemon=True).start()
+        except Exception as e:
+            self.sock = None
+            self.add_message(f"помилка: {e}")
+
+    def add_message(self, message, img=None):
+        frame = CTkFrame(self.chat_field, fg_color="grey", width=320)
+        frame.pack(pady=5, anchor="w")
+        if img:
+            # Спочатку текст
+            CTkLabel(frame, text=message, wraplength=300, text_color="white", justify="left").pack(padx=10, anchor="w")
+            # Потім зображення
+            CTkLabel(frame, image=img, text="", width=250, height=250).pack(padx=10, pady=5)
+        else:
+            CTkLabel(frame, text=message, wraplength=300, text_color="white", justify="left").pack(padx=10, pady=5)
+        self.chat_field._parent_canvas.yview_moveto(1.0)
+
+    def send_message(self):
+        msg = self.message_entry.get().strip()
+        if not msg or not self.sock:
+            return
+        full = f"TEXT@{self.username}@{msg}"
+        try:
+            self.sock.sendall((full + "\n").encode())
+            self.add_message(f"{self.username}: {msg}")
+        except:
+            self.add_message("⚠️ Помилка надсилання повідомлення")
+        self.message_entry.delete(0, END)
+
+    def recv_message(self):
+        buffer = ""
+        try:
+            while True:
+                chunk = self.sock.recv(4096)
+                if not chunk:
+                    break
+                buffer += chunk.decode(errors='ignore')
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    self.handle_line(line.strip())
+        except:
+            self.add_message("❌ З'єднання з сервером втрачено.")
+        finally:
+            self.sock.close()
+
+    def handle_line(self, line):
+        if not line:
+            return
+        parts = line.split("@", 3)
+        if parts[0] == "TEXT":
+            self.add_message(f"{parts[1]}: {parts[2]}")
+        elif parts[0] == "IMAGE":
+            try:
+                img_data = base64.b64decode(parts[3])
+                pil_img = Image.open(io.BytesIO(img_data))
+                ctk_img = CTkImage(pil_img, size=(250, 250))
+                self.add_message(f"{parts[1]}, надіслав зображення: {parts[2]}", img=ctk_img)
+            except Exception as e:
+                self.add_message(f"Помилка відображення картинки: {e}")
+
+    def open_image(self):
+        if not self.sock:
+            self.add_message("⚠️ З'єднання неактивне")
+            return
+        file = filedialog.askopenfilename()
+        if not file:
+            return
+        try:
+            with open(file, "rb") as f:
+                raw = f.read()
+            Image.open(io.BytesIO(raw)).verify()
+            b64 = base64.b64encode(raw).decode()
+            name = os.path.basename(file)
+            msg = f"IMAGE@{self.username}@{name}@{b64}"
+            self.sock.sendall((msg + "\n").encode())
+            img = CTkImage(light_image=Image.open(file), size=(250, 250))
+            self.add_message(f"{self.username}, надіслав зображення: {name}", img=img)
+        except Exception as e:
+            self.add_message(f"⚠️ Не вдалося надіслати зображення: {e}")
+
+    def save_name(self):
+        name = self.entry.get().strip()
+        if name:
+            self.username = name
+            self.add_message(f"Ваш новий нік: {self.username}")
+
+
+if __name__ == "__main__":
+    win = MainWindow()
+    win.mainloop()

@@ -1,1 +1,106 @@
+from customtkinter import *
+from PIL import Image
+import os
 
+set_appearance_mode("dark")         # 🎨 "light" / "dark" / "system"
+set_default_color_theme("blue")     # 🎨 "blue" / "green" / "dark-blue"
+
+class ConnectWindow(CTk):
+    def __init__(self):
+        super().__init__()
+
+        self.name = None
+        self.host = None
+        self.port = None
+
+        self.title("Agario")
+        self.geometry("320x520")
+        self.resizable(False, False)
+        self.configure(fg_color="#1e1e2e")     # 🎨 фон всього вікна
+
+        # Картинка зверху
+        top = CTkFrame(self, fg_color="transparent")
+        top.pack(fill="x", pady=10)
+        img_path = "logo.png"
+        if os.path.exists(img_path):
+            top_image = CTkImage(Image.open(img_path), size=(160, 160))
+            CTkLabel(top, image=top_image, text="").pack()
+        else:
+            CTkLabel(top, text="Agario", font=("Comic Sans MS", 28, "bold"),
+                     text_color="#e5e9f0").pack(pady=20)
+
+        # Заголовок
+        CTkLabel(
+            self, text="Connect to server:",
+            font=("Comic Sans MS", 20, "bold"),
+            text_color="#e5e9f0"              # 🎨 колір тексту
+        ).pack(pady=(0, 8))
+
+        # Поля вводу
+        form = CTkFrame(self, fg_color="transparent")
+        form.pack(fill="x", padx=20)
+
+        self.name_entry = CTkEntry(
+            form, placeholder_text="Введіть ім'я",
+            height=44,
+            fg_color="#2e2e3e",               # 🎨 фон поля
+            text_color="#ffffff",              # 🎨 колір введеного тексту
+            placeholder_text_color="#9aa0a6", # 🎨 колір плейсхолдера
+            border_color="#5e81ac",           # 🎨 колір рамки
+            corner_radius=10
+        )
+        self.name_entry.pack(fill="x", pady=8)
+
+        self.host_entry = CTkEntry(
+            form, placeholder_text="Введіть хост",
+            height=44,
+            fg_color="#2e2e3e",
+            text_color="#ffffff",
+            placeholder_text_color="#9aa0a6",
+            border_color="#5e81ac",
+            corner_radius=10
+        )
+        self.host_entry.pack(fill="x", pady=8)
+
+        self.port_entry = CTkEntry(
+            form, placeholder_text="Введіть порт",
+            height=44,
+            fg_color="#2e2e3e",
+            text_color="#ffffff",
+            placeholder_text_color="#9aa0a6",
+            border_color="#5e81ac",
+            corner_radius=10
+        )
+        self.port_entry.pack(fill="x", pady=8)
+
+        # Заповнюємо дефолтні значення
+        self.name_entry.insert(0, "Player")
+        self.host_entry.insert(0, "localhost")  # дефолт host
+        self.port_entry.insert(0, "8080")       # дефолт port
+
+        # Кнопка Join
+        CTkButton(
+            self, text="Join", height=48,
+            fg_color="#5e81ac",               # 🎨 фон кнопки
+            hover_color="#81a1c1",            # 🎨 фон при наведенні
+            text_color="#ffffff",              # 🎨 колір тексту кнопки
+            command=self.open_game
+        ).pack(fill="x", padx=20, pady=10)
+
+        # Enter -> Join
+        self.bind("<Return>", lambda _e: self.open_game())
+
+    def open_game(self):
+        self.name = self.name_entry.get().strip() or "Player"
+        self.host = self.host_entry.get().strip() or "localhost"
+        self.port = int(self.port_entry.get().strip() or 8080)
+        self.destroy()
+
+
+# Приклад запуску окремо
+if __name__ == "__main__":
+    win = ConnectWindow()
+    win.mainloop()
+    print("Name:", win.name)
+    print("Host:", win.host)
+    print("Port:", win.port)
